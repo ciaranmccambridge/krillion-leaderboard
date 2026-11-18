@@ -18,6 +18,7 @@ import {
 } from './dates.js';
 import { validEntries, rankDay, closedDayResults, tallyResults, mergeTallies, rankPlayers } from './scoring.js';
 import { parseResult, cleanPuzzle, CATEGORIES } from './result.js';
+import { displayNames, baseName } from './names.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -74,6 +75,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 const state = {
   user: null,
   users: {},
+  names: {},        // uid -> name shown on the boards (see names.js)
   standings: null,  // { throughDate, players } or null before the first job run
   todayScores: null, // today's raw score docs; null until the first answer arrives
   scores: [],       // raw score docs dated after standings.throughDate
@@ -165,8 +167,9 @@ function showError(message) {
   els.error.hidden = !message;
 }
 
+/** The name shown on the boards: nickname, plus surname letters if it clashes. */
 function nameFor(uid, fallback = '') {
-  return state.users[uid]?.nickname || fallback || state.users[uid]?.googleName || 'Someone';
+  return state.names[uid] || fallback || 'Someone';
 }
 
 function el(tag, props = {}, ...children) {
@@ -527,6 +530,7 @@ function startData() {
   let profileChecked = false;
   subscribeUsers((users) => {
     state.users = users;
+    state.names = displayNames(users);
     render();
     updateWho();
     // Create/refresh the profile in the background, using the copy we just
@@ -586,8 +590,12 @@ els.signinButton.addEventListener('click', async () => {
 els.signOut.addEventListener('click', () => signOut().then(() => location.reload()));
 
 els.whoName.addEventListener('click', async () => {
-  const current = nameFor(state.user.uid, state.user.displayName);
-  const next = prompt('The name everyone sees on the leaderboard:', current);
+  // Edit the name you chose, not the surname letters added to tell you apart.
+  const current = baseName(state.users[state.user.uid] || { googleName: state.user.displayName });
+  const next = prompt(
+    'Your name on the leaderboard. If someone else has the same name, the first letters of your surname are added automatically.',
+    current
+  );
   const trimmed = next?.trim().slice(0, 30);
   if (!trimmed || trimmed === current) return;
   try {

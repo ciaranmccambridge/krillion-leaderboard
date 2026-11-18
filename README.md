@@ -129,8 +129,10 @@ tests/                      node tests + wiring check
   you've submitted, that's it. The Firestore rules allow creating a score but never updating or deleting
   one. To fix someone's score or remove a joke entry, edit it in the Firestore console, then run the
   workflow by hand so results and standings update.
-- **Names.** Everyone starts with their Google first name. Click your name at the bottom of the page to change it.
-  Names on past days update too.
+- **Names.** Everyone starts with their Google first name. When two people would show the same
+  name, each automatically gets just enough of their surname to tell them apart ("Ciaran M." /
+  "Ciaran O.", or "Ciaran Mc." / "Ciaran Ma."). Surnames come from the full Google name, and nothing
+  extra is stored. Click your name at the bottom of the page to change it. Names on past days update too.
 - **GitHub pauses scheduled workflows after 60 days with no commits** to a public repo, and emails you
   first. Scores and the leaderboard keep working (see *Cheap reads*), but reads slowly creep up until you re-enable it under **Actions**.
 - **Anyone with a Google account can sign in.** That's by design for a link shared in Slack. To lock

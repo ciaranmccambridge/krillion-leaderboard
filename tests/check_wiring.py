@@ -19,6 +19,7 @@ SCRIPTS = [
     "assets/dates.js",
     "assets/scoring.js",
     "assets/result.js",
+    "assets/names.js",
     "scripts/nightly-results.mjs",
 ]
 

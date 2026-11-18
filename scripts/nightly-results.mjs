@@ -17,6 +17,7 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { londonDate, isDayFinal, RESULTS_LABEL } from '../assets/dates.js';
 import { closedDayResults, tallyResults } from '../assets/scoring.js';
+import { displayNames } from '../assets/names.js';
 
 const args = new Set(process.argv.slice(2));
 const FORCE = args.has('--force');
@@ -45,13 +46,14 @@ const [scoreSnap, userSnap] = await Promise.all([
   db.collection('users').get(),
 ]);
 
-const nicknames = Object.fromEntries(userSnap.docs.map((doc) => [doc.id, doc.get('nickname')]));
+// Same names as the page shows, including surname letters for clashes.
+const names = displayNames(Object.fromEntries(userSnap.docs.map((doc) => [doc.id, doc.data()])));
 
 const scores = scoreSnap.docs.map((doc) => {
   const data = doc.data();
   return {
     ...data,
-    displayName: nicknames[data.uid] || data.displayName || '',
+    displayName: names[data.uid] || data.displayName || '',
     updatedAt: data.updatedAt?.toMillis?.() ?? NaN,
   };
 });
