@@ -1,0 +1,10 @@
+.DS_Store
+node_modules/
+
+# Local test screenshots. Keep them out of the public repo.
+samples/
+/*.png
+
+# Never commit a service-account key.
+*service-account*.json
+*-firebase-adminsdk-*.json

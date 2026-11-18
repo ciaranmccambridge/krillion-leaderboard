@@ -1,0 +1,80 @@
+// Paste into: Firebase console -> Firestore Database -> Rules -> Publish.
+//
+// The model:
+//   - You must be signed in (Google) to read or write anything.
+//   - You can only write your own profile and score.
+//   - Timestamps are forced to server time, so the 18:00 cutoff can't be faked:
+//     scoring.js ignores any score whose updatedAt is after 18:00 London on its day.
+//   - results/ and standings/ are written only by the nightly job (Admin SDK, which
+//     bypasses these rules), so clients can read but never write them.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // 'YYYY-MM-DD' -> midnight UTC on that date.
+    function dayStart(date) {
+      let parts = date.split('-');
+      return timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+    }
+
+    // Writes are only accepted during the day they're for. London midnight is
+    // 23:00 UTC the day before in summer, hence the hour of slack at the start.
+    // The 18:00 UTC end is 18:00 London in winter and 19:00 in summer; the app
+    // and scoring.js apply the exact 18:00 London cutoff on top of this.
+    function duringDay(date) {
+      return date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.time > dayStart(date) - duration.value(1, 'h')
+        && request.time < dayStart(date) + duration.value(18, 'h');
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['nickname', 'googleName', 'photoURL'])
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() > 0
+        && request.resource.data.nickname.size() <= 30;
+    }
+
+    match /scores/{id} {
+      allow read: if signedIn();
+      // create only: one result per person per day, no replacing it later.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['date', 'uid', 'displayName', 'score', 'puzzle', 'grid', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && id == request.resource.data.date + '_' + request.auth.uid
+        && duringDay(request.resource.data.date)
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 10000000
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 60
+        && request.resource.data.puzzle is string
+        && request.resource.data.puzzle.size() <= 40
+        && request.resource.data.grid is string
+        && request.resource.data.grid.size() <= 120
+        && request.resource.data.updatedAt == request.time;
+      // No updates or deletes: a result, once in, stays in.
+    }
+
+    match /results/{date} {
+      allow read: if signedIn();
+    }
+
+    match /standings/{doc} {
+      allow read: if signedIn();
+    }
+
+    // Everything else stays shut.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

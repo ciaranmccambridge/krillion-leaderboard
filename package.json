@@ -1,0 +1,14 @@
+{
+  "name": "krillion-leaderboard",
+  "private": true,
+  "type": "module",
+  "description": "Static site (no build step) for the office Krillion leaderboard. firebase-admin is only used by the nightly results job, never by the site.",
+  "scripts": {
+    "test": "node tests/dates.test.mjs && node tests/scoring.test.mjs && node tests/result.test.mjs && python3 tests/check_wiring.py",
+    "serve": "python3 -m http.server 8765",
+    "nightly": "node scripts/nightly-results.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

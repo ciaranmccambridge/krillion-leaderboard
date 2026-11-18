@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c1621" />
+    <title>Krillion Leaderboard</title>
+    <meta name="description" content="Daily Krillion scores and the office's overall leaderboard." />
+    <link rel="icon" type="image/png" href="assets/krillion-logo.png" />
+    <link rel="apple-touch-icon" href="assets/krillion-logo.png" />
+    <!-- Start downloading Firebase straight away, in parallel with the page,
+         rather than only once app.js has loaded and asked for it. Keep the
+         version in step with SDK_VERSION in assets/firebase.js. -->
+    <link rel="modulepreload" href="assets/app.js" />
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js" />
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js" />
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js" />
+
+    <!-- Fonts load without blocking the first paint (display=swap + the
+         print-media trick); system monospace shows until they arrive. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Space+Mono:wght@400;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <!-- ------------------------------------------------------ nav -->
+    <nav class="tabs" id="tabs" role="tablist" hidden>
+      <button type="button" role="tab" class="tab" data-tab="daily" aria-selected="false">Daily</button>
+      <button type="button" role="tab" class="tab tab-add" data-tab="add" aria-selected="true">
+        <img class="tab-logo" src="assets/krillion-logo.png" alt="" />
+        <span>Add Score</span>
+      </button>
+      <button type="button" role="tab" class="tab" data-tab="overall" aria-selected="false">Overall</button>
+    </nav>
+
+    <main class="shell">
+      <p class="banner" id="error-banner" hidden></p>
+
+      <!-- Only with ?test in the URL. Fake players, kept in this browser only. -->
+      <div class="test-bar" id="test-bar" hidden>
+        <p><strong>Test mode.</strong> Each paste adds a fake player. Nothing is sent to Firebase; it’s kept in this browser only.</p>
+        <div class="test-actions">
+          <button type="button" class="ghost" id="test-clock"></button>
+          <button type="button" class="ghost" id="test-clear">Clear test scores</button>
+        </div>
+      </div>
+
+      <!-- Shown until we know whether you're signed in, so the page never
+           flashes the wrong screen. -->
+      <div class="loading" id="boot">
+        <img class="loading-logo" src="assets/krillion-logo.png" alt="" />
+        <span>Loading…</span>
+      </div>
+
+      <!-- -------------------------------------------------- sign in -->
+      <section class="signin" id="signin-view" hidden>
+        <img class="signin-logo" src="assets/krillion-logo.png" alt="Krillion" />
+        <h1 class="glitch">Krillion</h1>
+        <p class="kicker">Office leaderboard</p>
+        <p class="blurb">
+          Play the <a href="https://krillion.io/" target="_blank" rel="noopener">daily dive</a>, paste
+          your result before 18:00, and the day’s top three get 3, 2 and 1 points.
+        </p>
+        <button type="button" class="primary" id="signin-button">Sign in with Google</button>
+      </section>
+
+      <!-- ------------------------------------------------------ app -->
+      <section id="app-view" hidden>
+        <!-- ============================================== ADD SCORE -->
+        <div class="panel" id="panel-add">
+          <div class="loading" id="add-loading">
+            <img class="loading-logo" src="assets/krillion-logo.png" alt="" />
+            <span>Loading…</span>
+          </div>
+
+          <div id="add-body" hidden>
+          <p class="kicker" id="add-kicker"></p>
+          <h1 class="glitch" id="add-title">Add your score</h1>
+          <p class="status" id="add-status"></p>
+
+          <form class="card" id="submit-form" hidden>
+            <p class="hint first">
+              In Krillion, tap <strong>Copy your result</strong>, then paste it here.
+            </p>
+
+            <button type="button" class="primary" id="paste-button">Paste from clipboard</button>
+
+            <p class="or">or paste it below yourself</p>
+            <!-- Accepts a paste and nothing else: typing, deleting and dropping are
+                 blocked in app.js, and the score is read from the clipboard text,
+                 never from what's shown here. inputmode=none keeps the phone
+                 keyboard away while still allowing long-press → Paste. -->
+            <div
+              class="paste-zone"
+              id="paste-zone"
+              contenteditable="true"
+              inputmode="none"
+              spellcheck="false"
+              role="textbox"
+              aria-label="Paste your Krillion result here"
+              data-placeholder="Long-press here and tap Paste (or Ctrl/⌘+V)"
+            ></div>
+
+            <div class="parsed" id="parsed" hidden>
+              <span class="parsed-score glitch" id="parsed-score"></span>
+              <span class="parsed-meta" id="parsed-meta"></span>
+            </div>
+
+            <button type="submit" class="primary" id="submit-button" hidden>Submit score</button>
+            <p class="hint" id="submit-hint"></p>
+          </form>
+
+          <div class="card done-card" id="done-card" hidden>
+            <p class="done-label">Submitted for today</p>
+            <p class="done-score glitch" id="done-score"></p>
+            <p class="done-meta" id="done-meta"></p>
+            <button type="button" class="ghost" id="see-standings">See today’s standings</button>
+          </div>
+
+          <div class="card closed-card" id="closed-card" hidden>
+            <p>Submissions are closed for today. The next dive opens at midnight.</p>
+            <button type="button" class="ghost" id="see-results">See today’s results</button>
+          </div>
+          </div>
+        </div>
+
+        <!-- ================================================== DAILY -->
+        <div class="panel" id="panel-daily" hidden>
+          <p class="kicker" id="today-kicker"></p>
+          <h1 class="glitch">Daily</h1>
+          <p class="status" id="today-status"></p>
+          <p class="status rules">3 points for a win, 2 for second, 1 for third.<br />Ties share the place.</p>
+
+          <div class="table-scroll">
+            <table id="today-table" hidden>
+              <thead>
+                <tr><th></th><th>Player</th><th class="numeric">Score</th><th class="numeric">Pts</th><th class="grid-col">Dive log</th></tr>
+              </thead>
+              <tbody id="today-body"></tbody>
+            </table>
+          </div>
+          <p class="empty" id="today-empty">No scores yet today. Be the first.</p>
+
+          <h2 class="section-label">Previous days</h2>
+          <div id="history-list"></div>
+          <p class="empty" id="history-empty">Nothing here yet.</p>
+        </div>
+
+        <!-- ================================================ OVERALL -->
+        <div class="panel" id="panel-overall" hidden>
+          <p class="kicker">All time</p>
+          <h1 class="glitch">Overall</h1>
+          <p class="status" id="overall-status"></p>
+          <div class="table-scroll">
+            <table id="overall-table" hidden>
+              <thead id="overall-head"></thead>
+              <tbody id="overall-body"></tbody>
+            </table>
+          </div>
+          <p class="scroll-hint">Swipe the table sideways to see every count →</p>
+          <p class="empty" id="overall-empty">No finished days yet. Points land at 18:00.</p>
+        </div>
+
+        <footer class="who" id="who" hidden>
+          <img class="avatar" id="who-avatar" alt="" referrerpolicy="no-referrer" />
+          <button type="button" class="link" id="who-name" title="Change the name others see"></button>
+          <span class="dot" aria-hidden="true">·</span>
+          <button type="button" class="link muted" id="sign-out">Sign out</button>
+        </footer>
+      </section>
+    </main>
+
+    <script type="module" src="assets/app.js"></script>
+  </body>
+</html>

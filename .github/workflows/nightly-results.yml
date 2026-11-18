@@ -1,0 +1,39 @@
+name: Nightly results (18:02 UK)
+
+# Finalises each day's results and the overall standings.
+#
+# Results are revealed at 18:01 London time; this saves them just after.
+# Cron is UTC. 18:02 in London is 18:02 UTC in winter and 17:02 UTC in summer,
+# so both are scheduled; the script itself checks London time and the early run
+# exits straight away in winter. Running twice is harmless.
+# GitHub can start scheduled runs late; the site works out results itself in
+# the meantime, so a late run only delays the saved summary.
+
+on:
+  schedule:
+    - cron: '2 17 * * *'
+    - cron: '2 18 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run now, even if it is before 18:01 UK'
+        type: boolean
+        default: false
+
+concurrency:
+  group: nightly-results
+
+jobs:
+  results:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/nightly-results.mjs ${{ inputs.force && '--force' || '' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
