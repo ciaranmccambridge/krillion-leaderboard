@@ -2,7 +2,7 @@
 // Parsing the text from Krillion's "Copy your result" button.
 
 import { createChecker } from './helpers.mjs';
-import { parseResult, countGrid } from '../assets/result.js';
+import { parseResult, countGrid, expandShortcodes, cleanPuzzle } from '../assets/result.js';
 
 const { check, report } = createChecker('result');
 
@@ -22,6 +22,18 @@ check('just a number is rejected', Boolean(parseResult('180').error), true);
 check('header but no score', Boolean(parseResult('Krillion #1 🦐\n🦑⬛').error), true);
 check('empty', Boolean(parseResult('').error), true);
 check('decimal is not a score', Boolean(parseResult('Krillion #1\n18.5').error), true);
+
+// --- emoji as text shortcodes (copied via Slack / Discord / some Linux setups)
+const SLACK = 'Krillion #126 :shrimp:\n385\n\n:black_large_square::bubbles::fish::squid::izakaya_lantern::star2::star2:';
+check('shortcode paste reads the same as the real thing', parseResult(SLACK), parseResult(REAL));
+check('shortcode dive log counts', countGrid(parseResult(SLACK).grid),
+  { krillion: 2, deepCut: 1, rare: 1, schooler: 1, plankton: 1, miss: 1 });
+check('mixed emoji and shortcodes', parseResult('Krillion #127 🦐\n90\n⬛:bubbles:🐟:glowing_star:').grid, '⬛🫧🐟🌟');
+check('aliases', expandShortcodes(':large_black_square::lantern::glowing_star:'), '⬛🏮🌟');
+check('unknown shortcode kept visible in dive log', parseResult('Krillion #1\n5\n:fish::mystery:').grid, '🐟:mystery:');
+check('ordinary colons untouched', expandShortcodes('time 12:30: ok'), 'time 12:30: ok');
+check('old saved label tidied', cleanPuzzle('#126 :shrimp:'), '#126');
+check('clean label unchanged', cleanPuzzle('#126'), '#126');
 
 // --- dive log -> category counts
 check('every category in the real result', countGrid('⬛🫧🐟🦑🏮🌟🌟'),

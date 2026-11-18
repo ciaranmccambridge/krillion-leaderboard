@@ -24,6 +24,40 @@ export const MISS_EMOJI = '⬛';
 const BY_EMOJI = new Map(CATEGORIES.map((category) => [category.emoji, category.key]));
 const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' });
 
+// Slack, Discord, GitHub and some Linux setups copy emoji as text shortcodes
+// (":fish:" instead of 🐟). These are the standard names for every emoji
+// Krillion uses, plus common aliases, so a pasted result reads the same either
+// way. Unknown shortcodes are left as they are.
+const SHORTCODES = {
+  shrimp: '🦐',
+  black_large_square: '⬛',
+  large_black_square: '⬛',
+  black_square: '⬛',
+  bubbles: '🫧',
+  fish: '🐟',
+  squid: '🦑',
+  izakaya_lantern: '🏮',
+  red_paper_lantern: '🏮',
+  lantern: '🏮',
+  star2: '🌟',
+  glowing_star: '🌟',
+};
+const SHORTCODE = /:([a-z0-9_+-]+):/gi;
+
+/** ':fish::bubbles:' -> '🐟🫧' */
+export function expandShortcodes(text) {
+  return String(text || '').replace(SHORTCODE, (match, name) => SHORTCODES[name.toLowerCase()] ?? match);
+}
+
+/** '#126 :shrimp:' -> '#126'. Also tidies dive labels saved before shortcodes were understood. */
+export function cleanPuzzle(puzzle) {
+  return String(puzzle || '')
+    .replace(SHORTCODE, '')
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function emptyCounts() {
   return Object.fromEntries([...CATEGORIES.map((c) => [c.key, 0]), ['miss', 0]]);
 }
@@ -44,7 +78,7 @@ export function countGrid(grid) {
  * suitable for showing to the person.
  */
 export function parseResult(text) {
-  const lines = String(text || '')
+  const lines = expandShortcodes(text)
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -59,13 +93,8 @@ export function parseResult(text) {
     return { error: 'That’s an Endless Dive result. Only the daily dive counts, so paste today’s daily result instead.' };
   }
 
-  // "Krillion #126 🦐" -> "#126". Emoji are dropped.
-  const puzzle = lines[headerIndex]
-    .replace(/krillion/i, '')
-    .replace(/[\p{Extended_Pictographic}️‍]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 40);
+  // "Krillion #126 🦐" -> "#126". Emoji (and any unknown shortcodes) are dropped.
+  const puzzle = cleanPuzzle(lines[headerIndex].replace(/krillion/i, '')).slice(0, 40);
 
   const rest = lines.slice(headerIndex + 1);
   const scoreIndex = rest.findIndex((line) => /^\d{1,3}(,\d{3})+$|^\d+$/.test(line));
@@ -78,8 +107,11 @@ export function parseResult(text) {
     return { error: 'That score looks wrong. Paste the result straight from the game.' };
   }
 
-  // The dive log: the first line after the score with no letters or digits.
-  const grid = (rest.slice(scoreIndex + 1).find((line) => !/[\p{L}\p{N}]/u.test(line)) || '').slice(0, 120);
+  // The dive log: the first line after the score with no letters or digits
+  // (ignoring any shortcodes we didn't recognise, which are kept so they show).
+  const grid = (
+    rest.slice(scoreIndex + 1).find((line) => !/[\p{L}\p{N}]/u.test(line.replace(SHORTCODE, ''))) || ''
+  ).slice(0, 120);
 
   return { score, puzzle, grid };
 }

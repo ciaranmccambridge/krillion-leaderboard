@@ -17,7 +17,7 @@ import {
   CUTOFF_LABEL,
 } from './dates.js';
 import { validEntries, rankDay, closedDayResults, tallyResults, mergeTallies, rankPlayers } from './scoring.js';
-import { parseResult, CATEGORIES } from './result.js';
+import { parseResult, cleanPuzzle, CATEGORIES } from './result.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -225,7 +225,7 @@ function renderAdd() {
   els.doneCard.hidden = !mine;
   if (mine) {
     els.doneScore.textContent = formatScore(mine.score);
-    els.doneMeta.textContent = [mine.puzzle && `Krillion ${mine.puzzle}`, spaceOut(mine.grid)].filter(Boolean).join('  ·  ');
+    els.doneMeta.textContent = [mine.puzzle && `Krillion ${cleanPuzzle(mine.puzzle)}`, spaceOut(mine.grid)].filter(Boolean).join('  ·  ');
   }
 }
 
@@ -255,7 +255,7 @@ function renderToday() {
         el('td', { className: 'rank' }, entry.points ? medal(entry.rank) : String(entry.rank)),
         el('td', { className: 'name' },
           entry.displayName,
-          entry.puzzle ? el('span', { className: 'puzzle' }, entry.puzzle) : null,
+          entry.puzzle ? el('span', { className: 'puzzle' }, cleanPuzzle(entry.puzzle)) : null,
           // On phones the dive log sits under the name instead of in its own column.
           entry.grid ? el('span', { className: 'grid-inline' }, spaceOut(entry.grid)) : null,
         ),
