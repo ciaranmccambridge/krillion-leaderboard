@@ -7,9 +7,11 @@
 //     (scores 900, 900, 800 -> ranks 1, 1, 3 -> points 3, 3, 1).
 //   - Anything updated after the day's 18:00 cutoff is ignored entirely.
 //   - A day's results become final at 18:01.
+//   - Weekends don't count: anything dated Saturday or Sunday is ignored, so
+//     nobody can pick up points by being the only one playing.
 //   - Only closed days count towards the overall table.
 
-import { isOnTime, isDayFinal } from './dates.js';
+import { isOnTime, isDayFinal, isPlayDay } from './dates.js';
 import { countGrid, emptyCounts } from './result.js';
 
 export const PLACE_POINTS = [3, 2, 1];
@@ -58,10 +60,11 @@ export function groupByDate(entries) {
  * Final results for every closed day among `entries`, newest first:
  * [{ date, entries: [{ uid, displayName, score, rank, points }] }]
  */
-export function closedDayResults(entries, now = Date.now()) {
+export function closedDayResults(entries, now = Date.now(), { countWeekends = false } = {}) {
   const days = [];
   for (const [date, dayEntries] of groupByDate(validEntries(entries))) {
     if (!isDayFinal(date, now)) continue;
+    if (!countWeekends && !isPlayDay(date)) continue;
     days.push({
       date,
       entries: rankDay(dayEntries).map(({ uid, displayName, score, grid, rank, points }) => ({

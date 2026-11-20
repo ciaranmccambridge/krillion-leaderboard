@@ -4,7 +4,7 @@
 import { createChecker } from './helpers.mjs';
 import {
   londonDate, cutoffInstant, londonInstant, isDayClosed, isDayFinal, resultsInstant, isOnTime, addDays, formatDay, formatDuration,
-  CUTOFF_LABEL, RESULTS_LABEL,
+  CUTOFF_LABEL, RESULTS_LABEL, isPlayDay, nextPlayDay,
 } from '../assets/dates.js';
 
 const { check, report } = createChecker('dates');
@@ -36,6 +36,13 @@ check('future days are open', isDayClosed('2026-01-16', utc('2026-01-15T09:00:00
 check('updated 17:59 counts', isOnTime('2026-01-15', utc('2026-01-15T17:59:59Z')), true);
 check('updated 18:01 does not', isOnTime('2026-01-15', utc('2026-01-15T18:01:00Z')), false);
 check('missing timestamp does not', isOnTime('2026-01-15', NaN), false);
+
+// --- weekdays only
+check('Mon-Fri are play days', ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20'].map(isPlayDay), [true, true, true, true, true]);
+check('Sat/Sun are not', ['2026-11-21', '2026-11-22'].map(isPlayDay), [false, false]);
+check('next play day from Friday is Monday', nextPlayDay('2026-11-20'), '2026-11-23');
+check('next play day from Saturday is Monday', nextPlayDay('2026-11-21'), '2026-11-23');
+check('next play day from Monday is Tuesday', nextPlayDay('2026-11-23'), '2026-11-24');
 
 // --- helpers
 check('addDays across month end', addDays('2026-01-31', 1), '2026-02-01');

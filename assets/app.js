@@ -13,7 +13,7 @@ import {
   subscribeUsers, subscribeScoresOn, subscribeScoresAfter, subscribeStandings, fetchResults, submitScore,
 } from './firebase.js';
 import {
-  londonDate, isDayClosed, isDayFinal, cutoffInstant, resultsInstant, formatDay, formatDuration,
+  londonDate, isDayClosed, isDayFinal, isPlayDay, nextPlayDay, cutoffInstant, resultsInstant, formatDay, formatDuration,
   CUTOFF_LABEL,
 } from './dates.js';
 import { validEntries, rankDay, closedDayResults, tallyResults, mergeTallies, rankPlayers } from './scoring.js';
@@ -42,6 +42,9 @@ const els = {
   addTitle: $('add-title'),
   addStatus: $('add-status'),
   closedCard: $('closed-card'),
+  closedText: $('closed-text'),
+  todayRules: $('today-rules'),
+  testDay: $('test-day'),
   seeResults: $('see-results'),
   todayKicker: $('today-kicker'),
   todayStatus: $('today-status'),
@@ -94,7 +97,8 @@ const state = {
 //
 // Add ?test to the URL (e.g. http://localhost:8765/?test) to try the site with
 // one Google account: every paste adds a fake player instead of submitting,
-// and a pretend clock flips between 17:00 and 18:02. Fake scores live only in
+// a pretend clock flips between 17:00 and 18:02, and you can pretend it's a
+// weekday or a weekend (so it works on a Saturday too). Fake scores live only in
 // this browser's localStorage and are never sent to Firebase, so they can't
 // leak into real results. Without ?test none of this runs.
 
@@ -103,7 +107,7 @@ const TEST_KEY = 'krillion-test';
 const test = loadTest();
 
 function loadTest() {
-  const blank = { scores: [], afterCutoff: false };
+  const blank = { scores: [], afterCutoff: false, weekend: false };
   if (!TEST_MODE) return blank;
   try {
     return { ...blank, ...JSON.parse(localStorage.getItem(TEST_KEY) || '{}') };
@@ -122,6 +126,21 @@ function nowMs() {
   return test.afterCutoff
     ? resultsInstant(state.today) + 60_000 // 18:02: closed, results final
     : cutoffInstant(state.today) - 60 * 60_000; // 17:00: open
+}
+
+/** Is today a competition day? Weekdays only; test mode follows its switch. */
+function isPlayToday() {
+  return TEST_MODE ? !test.weekend : isPlayDay(state.today);
+}
+
+/** Can a result be submitted right now? */
+function isOpenNow() {
+  return isPlayToday() && !isDayClosed(state.today, nowMs());
+}
+
+/** Options for scoring: pretending it's a weekday in test mode lets weekend-dated tests count. */
+function scoringOptions() {
+  return { countWeekends: TEST_MODE && !test.weekend };
 }
 
 /** Real score rows, plus the fake ones in test mode. */
@@ -146,7 +165,16 @@ function renderTestBar() {
   els.testClock.textContent = test.afterCutoff
     ? 'Pretend clock: 18:02 (tap for 17:00)'
     : 'Pretend clock: 17:00 (tap for 18:02)';
+  els.testDay.textContent = test.weekend
+    ? 'Pretend day: weekend (tap for weekday)'
+    : 'Pretend day: weekday (tap for weekend)';
 }
+
+els.testDay.addEventListener('click', () => {
+  test.weekend = !test.weekend;
+  saveTest();
+  render();
+});
 
 els.testClock.addEventListener('click', () => {
   test.afterCutoff = !test.afterCutoff;
@@ -210,11 +238,25 @@ function renderAdd() {
   if (!loaded) return;
 
   const now = nowMs();
-  const closed = isDayClosed(state.today, now);
+  const playDay = isPlayToday();
+  const closed = !playDay || isDayClosed(state.today, now);
   // In test mode your real score never blocks the form: you keep adding players.
-  const mine = TEST_MODE ? null : todayRanked().find((entry) => entry.uid === state.user?.uid);
+  const mine = TEST_MODE || !playDay ? null : todayRanked().find((entry) => entry.uid === state.user?.uid);
 
   els.addKicker.textContent = formatDay(state.today);
+  els.closedText.textContent = playDay
+    ? 'Submissions are closed for today. The next dive opens at midnight.'
+    : `No dive today: the leaderboard runs Monday to Friday. Back on ${formatDay(nextPlayDay(state.today))}.`;
+  els.seeResults.textContent = playDay ? 'See today’s results' : 'See the latest results';
+
+  if (!playDay) {
+    els.addTitle.textContent = 'Weekend';
+    els.addStatus.textContent = 'Weekend scores don’t count, so nobody can sneak extra points.';
+    els.form.hidden = true;
+    els.doneCard.hidden = true;
+    els.closedCard.hidden = false;
+    return;
+  }
   els.addTitle.textContent = mine ? `You scored ${formatScore(mine.score)}` : 'Add your score';
   els.addStatus.textContent = closed
     ? `Submissions closed at ${CUTOFF_LABEL}.`
@@ -240,17 +282,21 @@ function hasSubmittedToday() {
 function renderToday() {
   const now = nowMs();
   const closed = isDayClosed(state.today, now);
-  const ranked = todayRanked();
+  const playDay = isPlayToday();
+  const ranked = playDay ? todayRanked() : [];
 
   els.todayKicker.textContent = `Today · ${formatDay(state.today)}`;
-  els.todayStatus.textContent = isDayFinal(state.today, now)
+  els.todayRules.hidden = !playDay;
+  els.todayStatus.textContent = !playDay
+    ? `No competition at weekends. The next dive opens on ${formatDay(nextPlayDay(state.today))}.`
+    : isDayFinal(state.today, now)
     ? 'Final results. The next dive opens at midnight.'
     : closed
       ? `Submissions closed at ${CUTOFF_LABEL}. Results in a moment…`
       : `Live standings. Submissions close at ${CUTOFF_LABEL} (${formatDuration(cutoffInstant(state.today) - now)} left).`;
 
   els.todayTable.hidden = ranked.length === 0;
-  els.todayEmpty.hidden = ranked.length > 0;
+  els.todayEmpty.hidden = ranked.length > 0 || !playDay;
   els.todayEmpty.textContent = state.todayScores === null ? 'Loading…' : 'No scores yet today. Be the first.';
   els.todayBody.replaceChildren(
     ...ranked.map((entry) =>
@@ -271,7 +317,7 @@ function renderToday() {
 }
 
 function renderOverall() {
-  const fresh = tallyResults(closedDayResults(withTest(state.scores), nowMs()));
+  const fresh = tallyResults(closedDayResults(withTest(state.scores), nowMs(), scoringOptions()));
   const rows = rankPlayers(mergeTallies(state.standings?.players, fresh));
 
   els.overallTable.hidden = rows.length === 0;
@@ -312,7 +358,7 @@ function renderOverall() {
 function renderHistory() {
   const throughDate = state.standings?.throughDate || NO_STANDINGS;
   const days = [
-    ...closedDayResults(withTest(state.scores), nowMs()),
+    ...closedDayResults(withTest(state.scores), nowMs(), scoringOptions()),
     ...state.results.filter((day) => day.date <= throughDate),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -345,7 +391,7 @@ function renderHistory() {
 /** Re-read the paste box and show what we understood from it. */
 /** Take a pasted result. The only way text gets into the form. */
 function acceptPaste(text) {
-  if (!state.user || hasSubmittedToday() || isDayClosed(state.today, nowMs())) return;
+  if (!state.user || hasSubmittedToday() || !isOpenNow()) return;
   state.pastedText = String(text || '');
   els.pasteZone.textContent = state.pastedText;
   updateParsed();
@@ -386,7 +432,7 @@ async function onSubmit(event) {
     return;
   }
 
-  if (isDayClosed(state.today, nowMs())) {
+  if (!isOpenNow()) {
     showError(`Too late, submissions closed at ${CUTOFF_LABEL}.`);
     render();
     return;

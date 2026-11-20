@@ -76,6 +76,17 @@ check('counts: merge == recompute', split, counted);
 check('standings saved before counts existed still merge',
   mergeTallies({ old: { displayName: 'Old', points: 3, wins: 1, podiums: 1, played: 1, totalScore: 5, best: 5 } }).old.counts.krillion, 0);
 
+// --- weekends never count
+const weekend = [
+  entry('a', 100, '2026-11-20'), entry('b', 50, '2026-11-20'),   // Friday
+  entry('b', 999, '2026-11-21'),                                  // Saturday: b alone
+  entry('b', 999, '2026-11-22'),                                  // Sunday: b alone
+];
+const monday = at('2026-11-23', '09:00');
+check('weekend days dropped', closedDayResults(weekend, monday).map((d) => d.date), ['2026-11-20']);
+check('no weekend points', rankPlayers(tallyResults(closedDayResults(weekend, monday))).map((r) => `${r.uid}:${r.points}`), ['a:3', 'b:2']);
+check('test mode can opt in', closedDayResults(weekend, monday, { countWeekends: true }).length, 3);
+
 // --- overall ties
 const tied = rankPlayers({
   x: { displayName: 'X', points: 6, wins: 1, podiums: 3, played: 3, totalScore: 3, best: 1 },

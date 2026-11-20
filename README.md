@@ -4,6 +4,7 @@ The office's daily [Krillion](https://krillion.io/) competition, replacing the S
 
 - Sign in with Google. In Krillion, tap **Copy your result**, then paste it into the site.
   The site reads the score, the dive number and the emoji dive log from the pasted text, and you submit.
+- **Weekdays only.** No submissions on Saturdays or Sundays (blocked by the page and the Firestore rules), and any weekend-dated score is ignored.
 - **Submissions close at 18:00 UK time; results appear at 18:01.** The day's top three get **3 / 2 / 1 points**.
   Ties share the place and each gets the points, so the next place is skipped: 900, 900, 800 -> 3, 3, 1.
 - At 18:02 a nightly job saves the day's final results and the overall totals.
@@ -117,7 +118,8 @@ tests/                      node tests + wiring check
 
 - **Test mode: add `?test` to the URL** (e.g. `http://localhost:8765/?test`). Every paste adds a fake
   player ("Tester 1", "Tester 2"…), and a pretend clock switches between 17:00 and 18:02, so you
-  can try the whole flow with one Google account at any time of day. Fake scores are kept in that
+  can try the whole flow with one Google account at any time of day. A second switch pretends it's a
+  weekday or a weekend, so testing works on Saturdays too. Fake scores are kept in that
   browser only and never sent to Firebase. Clear them with the button, or just drop `?test`.
 
 - **Only the daily dive counts.** Endless Dive results (`Krillion ∞ #…`) are rejected.

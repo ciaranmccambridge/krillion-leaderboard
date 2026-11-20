@@ -72,6 +72,20 @@ export function resultsInstant(date) {
   return cutoffInstant(date) + RESULTS_DELAY_MINUTES * 60_000;
 }
 
+/** The competition runs Monday to Friday only. */
+export function isPlayDay(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday, 6 = Saturday
+  return weekday >= 1 && weekday <= 5;
+}
+
+/** The next Monday-to-Friday date after `date`. */
+export function nextPlayDay(date) {
+  let next = addDays(date, 1);
+  while (!isPlayDay(next)) next = addDays(next, 1);
+  return next;
+}
+
 /** True once submissions for `date` have closed (from 18:00). */
 export function isDayClosed(date, now = Date.now()) {
   return Number(now) >= cutoffInstant(date);

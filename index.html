@@ -47,6 +47,7 @@
         <p><strong>Test mode.</strong> Each paste adds a fake player. Nothing is sent to Firebase; it’s kept in this browser only.</p>
         <div class="test-actions">
           <button type="button" class="ghost" id="test-clock"></button>
+          <button type="button" class="ghost" id="test-day"></button>
           <button type="button" class="ghost" id="test-clear">Clear test scores</button>
         </div>
       </div>
@@ -124,7 +125,7 @@
           </div>
 
           <div class="card closed-card" id="closed-card" hidden>
-            <p>Submissions are closed for today. The next dive opens at midnight.</p>
+            <p id="closed-text">Submissions are closed for today. The next dive opens at midnight.</p>
             <button type="button" class="ghost" id="see-results">See today’s results</button>
           </div>
           </div>
@@ -135,7 +136,7 @@
           <p class="kicker" id="today-kicker"></p>
           <h1 class="glitch">Daily</h1>
           <p class="status" id="today-status"></p>
-          <p class="status rules">3 points for a win, 2 for second, 1 for third.<br />Ties share the place.</p>
+          <p class="status rules" id="today-rules">3 points for a win, 2 for second, 1 for third.<br />Ties share the place.</p>
 
           <div class="table-scroll">
             <table id="today-table" hidden>
